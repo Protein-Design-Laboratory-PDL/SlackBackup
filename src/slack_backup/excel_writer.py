@@ -32,6 +32,10 @@ CATEGORY_COLORS = {
     "분류 불확실": "FDECEC",
     "기타": "F2F4F7",
 }
+MESSAGE_IMAGE_WIDTH = 450
+MESSAGE_IMAGE_HEIGHT = 228
+GALLERY_IMAGE_WIDTH = 1740
+GALLERY_IMAGE_HEIGHT = 520
 
 
 def write_excel(
@@ -70,7 +74,7 @@ def _write_all_messages(
         "대표 이미지", "전체 이미지 위치", "메시지 ID", "원본 백업",
     ]
     _prepare_sheet(sheet, "전체 날짜순 기록", headers)
-    widths = [13, 10, 20, 15, 58, 24, 10, 24, 34, 34, 28]
+    widths = [13, 10, 20, 15, 58, 24, 10, 68, 34, 34, 28]
     _set_widths(sheet, widths)
     sheet.freeze_panes = "E5"
 
@@ -105,7 +109,7 @@ def _write_all_messages(
             for cell in sheet[row_index]:
                 cell.border = Border(top=Side(style="medium", color="8EA6CC"), bottom=THIN_BORDER.bottom)
             previous_date = message.date_key
-        sheet.row_dimensions[row_index].height = 84 if available else 42
+        sheet.row_dimensions[row_index].height = 180 if available else 42
         if available:
             _add_image(
                 sheet,
@@ -113,8 +117,8 @@ def _write_all_messages(
                 preview_dir,
                 f"representative-{available[0].attachment_id}",
                 f"H{row_index}",
-                150,
-                76,
+                MESSAGE_IMAGE_WIDTH,
+                MESSAGE_IMAGE_HEIGHT,
             )
             sheet.cell(row_index, 9).hyperlink = available[0].relative_path
             sheet.cell(row_index, 9).style = "Hyperlink"
@@ -206,7 +210,7 @@ def _write_attachments(
     sheet = workbook.create_sheet("첨부이미지")
     headers = ["날짜", "시각", "작성자", "파일명", "상태", "전체기록", "이미지"]
     _prepare_sheet(sheet, "첨부 이미지", headers)
-    _set_widths(sheet, [13, 10, 20, 32, 18, 14, 86])
+    _set_widths(sheet, [13, 10, 20, 32, 18, 14, 250])
     row_index = 5
     for message in messages:
         for item in stored.get(message.id, []):
@@ -233,12 +237,12 @@ def _write_attachments(
                     preview_dir,
                     f"gallery-{item.attachment_id}",
                     f"G{row_index}",
-                    580,
-                    280,
+                    GALLERY_IMAGE_WIDTH,
+                    GALLERY_IMAGE_HEIGHT,
                 )
                 sheet.cell(row_index, 4).hyperlink = item.relative_path
                 sheet.cell(row_index, 4).style = "Hyperlink"
-                sheet.row_dimensions[row_index].height = 215
+                sheet.row_dimensions[row_index].height = 390
             else:
                 sheet.cell(row_index, 5).fill = PatternFill("solid", fgColor="FDECEC")
                 sheet.row_dimensions[row_index].height = 36

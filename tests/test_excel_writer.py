@@ -12,7 +12,7 @@ from slack_backup.models import Message, SourceRef, StoredAttachment
 def test_excel_contains_chronological_views_and_embedded_image(tmp_path: Path):
     image_path = tmp_path / "attachments" / "2026-01-02" / "1_1" / "01_image.png"
     image_path.parent.mkdir(parents=True)
-    Image.new("RGB", (100, 60), "navy").save(image_path)
+    Image.new("RGB", (2000, 1200), "navy").save(image_path)
     message = Message(
         id="reagent_apparatus_order:1.1",
         timestamp="1.1",
@@ -48,4 +48,9 @@ def test_excel_contains_chronological_views_and_embedded_image(tmp_path: Path):
     assert workbook["전체기록"]["C5"].value.startswith("=HYPERLINK")
     assert len(workbook["전체기록"]._images) == 1
     assert len(workbook["첨부이미지"]._images) == 1
-
+    message_image = workbook["전체기록"]._images[0].anchor.ext
+    gallery_image = workbook["첨부이미지"]._images[0].anchor.ext
+    assert message_image.cx / 9525 >= 380
+    assert gallery_image.cx / 9525 >= 860
+    assert workbook["전체기록"].column_dimensions["H"].width == 68
+    assert workbook["첨부이미지"].column_dimensions["G"].width == 250
