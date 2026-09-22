@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from datetime import date
+from hashlib import sha256
 from pathlib import Path
+import shutil
 from typing import Dict, Iterable, List, Mapping, Sequence, Tuple
 
 from openpyxl import Workbook
@@ -10,6 +12,8 @@ from openpyxl.drawing.image import Image as ExcelImage
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
+from PIL import Image as PillowImage
+from PIL import ImageOps
 
 from .models import Message, StoredAttachment
 
@@ -37,16 +41,20 @@ def write_excel(
 ) -> None:
     workbook = Workbook()
     workbook.remove(workbook.active)
-    row_by_message = _write_all_messages(workbook, messages, stored, path.parent)
-    _write_date_summary(workbook, messages, row_by_message)
-    _write_category_sheet(workbook, "발주요청", messages, row_by_message, {"발주 요청", "견적 요청"})
-    _write_category_sheet(workbook, "물품수령", messages, row_by_message, {"물품 수령"})
-    _write_category_sheet(workbook, "수령확인", messages, row_by_message, {"수령 확인"})
-    _write_attachments(workbook, messages, stored, path.parent, row_by_message)
-    _write_order_groups(workbook, messages, row_by_message)
-    workbook.calculation.fullCalcOnLoad = True
-    workbook.calculation.forceFullCalc = True
-    workbook.save(path)
+    preview_dir = path.parent / ".excel-previews"
+    try:
+        row_by_message = _write_all_messages(workbook, messages, stored, path.parent, preview_dir)
+        _write_date_summary(workbook, messages, row_by_message)
+        _write_category_sheet(workbook, "발주요청", messages, row_by_message, {"발주 요청", "견적 요청"})
+        _write_category_sheet(workbook, "물품수령", messages, row_by_message, {"물품 수령"})
+        _write_category_sheet(workbook, "수령확인", messages, row_by_message, {"수령 확인"})
+        _write_attachments(workbook, messages, stored, path.parent, preview_dir, row_by_message)
+        _write_order_groups(workbook, messages, row_by_message)
+        workbook.calculation.fullCalcOnLoad = True
+        workbook.calculation.forceFullCalc = True
+        workbook.save(path)
+    finally:
+        shutil.rmtree(preview_dir, ignore_errors=True)
 
 
 def _write_all_messages(
@@ -54,6 +62,7 @@ def _write_all_messages(
     messages: Sequence[Message],
     stored: Mapping[str, List[StoredAttachment]],
     output_dir: Path,
+    preview_dir: Path,
 ) -> Dict[str, int]:
     sheet = workbook.create_sheet("전체기록")
     headers = [
@@ -98,7 +107,15 @@ def _write_all_messages(
             previous_date = message.date_key
         sheet.row_dimensions[row_index].height = 84 if available else 42
         if available:
-            _add_image(sheet, output_dir / available[0].relative_path, f"H{row_index}", 150, 76)
+            _add_image(
+                sheet,
+                output_dir / available[0].relative_path,
+                preview_dir,
+                f"representative-{available[0].attachment_id}",
+                f"H{row_index}",
+                150,
+                76,
+            )
             sheet.cell(row_index, 9).hyperlink = available[0].relative_path
             sheet.cell(row_index, 9).style = "Hyperlink"
 
@@ -183,6 +200,7 @@ def _write_attachments(
     messages: Sequence[Message],
     stored: Mapping[str, List[StoredAttachment]],
     output_dir: Path,
+    preview_dir: Path,
     row_by_message: Mapping[str, int],
 ) -> None:
     sheet = workbook.create_sheet("첨부이미지")
@@ -209,7 +227,15 @@ def _write_attachments(
             sheet.cell(row_index, 6).style = "Hyperlink"
             if item.relative_path:
                 image_path = output_dir / item.relative_path
-                _add_image(sheet, image_path, f"G{row_index}", 580, 280)
+                _add_image(
+                    sheet,
+                    image_path,
+                    preview_dir,
+                    f"gallery-{item.attachment_id}",
+                    f"G{row_index}",
+                    580,
+                    280,
+                )
                 sheet.cell(row_index, 4).hyperlink = item.relative_path
                 sheet.cell(row_index, 4).style = "Hyperlink"
                 sheet.row_dimensions[row_index].height = 215
@@ -318,11 +344,20 @@ def _thread_label(message: Message) -> str:
     return f"답글 · 원문 {message.thread_timestamp}"
 
 
-def _add_image(sheet: Worksheet, path: Path, anchor: str, max_width: int, max_height: int) -> bool:
+def _add_image(
+    sheet: Worksheet,
+    path: Path,
+    preview_dir: Path,
+    preview_key: str,
+    anchor: str,
+    max_width: int,
+    max_height: int,
+) -> bool:
     if not path.is_file():
         return False
     try:
-        image = ExcelImage(path)
+        preview = _create_preview(path, preview_dir, preview_key, max_width * 2, max_height * 2)
+        image = ExcelImage(preview)
         ratio = min(max_width / image.width, max_height / image.height, 1)
         image.width = max(1, int(image.width * ratio))
         image.height = max(1, int(image.height * ratio))
@@ -331,3 +366,24 @@ def _add_image(sheet: Worksheet, path: Path, anchor: str, max_width: int, max_he
     except (OSError, ValueError):
         return False
 
+
+def _create_preview(
+    source: Path,
+    preview_dir: Path,
+    key: str,
+    max_width: int,
+    max_height: int,
+) -> Path:
+    digest = sha256(key.encode("utf-8")).hexdigest()[:20]
+    preview_dir.mkdir(parents=True, exist_ok=True)
+    with PillowImage.open(source) as opened:
+        image = ImageOps.exif_transpose(opened)
+        image.thumbnail((max_width, max_height), PillowImage.Resampling.LANCZOS)
+        has_alpha = image.mode in {"RGBA", "LA"} or "transparency" in image.info
+        if has_alpha:
+            destination = preview_dir / f"{digest}.png"
+            image.save(destination, format="PNG", optimize=True)
+        else:
+            destination = preview_dir / f"{digest}.jpg"
+            image.convert("RGB").save(destination, format="JPEG", quality=84, optimize=True)
+    return destination
