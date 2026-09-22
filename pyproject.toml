@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slack-order-backup"
+version = "0.1.0"
+description = "Create Excel and offline HTML archives from a Slack channel export."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "openpyxl>=3.1,<4",
+  "Pillow>=10,<12",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9"]
+
+[project.scripts]
+slack-backup = "slack_backup.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
