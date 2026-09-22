@@ -1,35 +1,11 @@
-import json
 from pathlib import Path
 
-from slack_backup.models import ExportSelection
 from slack_backup.parser import parse_exports
-
-
-def _write_export(root: Path, messages: list[dict]) -> ExportSelection:
-    channel = root / "reagent_apparatus_order"
-    channel.mkdir(parents=True)
-    (root / "users.json").write_text(
-        json.dumps(
-            [
-                {
-                    "id": "U1",
-                    "real_name": "연구원",
-                    "profile": {"display_name": "테스트 연구원"},
-                }
-            ],
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
-    )
-    (channel / "2026-01-02.json").write_text(
-        json.dumps(messages, ensure_ascii=False),
-        encoding="utf-8",
-    )
-    return ExportSelection(root=root, name=root.name)
+from tests.helpers import write_export
 
 
 def test_parse_and_classify_messages(tmp_path: Path):
-    export = _write_export(
+    export = write_export(
         tmp_path / "export-a",
         [
             {
@@ -71,12 +47,11 @@ def test_overlapping_exports_are_deduplicated(tmp_path: Path):
         "user": "U1",
         "text": "견적 요청입니다",
     }
-    first = _write_export(tmp_path / "export-a", [raw_message])
-    second = _write_export(tmp_path / "export-b", [raw_message])
+    first = write_export(tmp_path / "export-a", [raw_message])
+    second = write_export(tmp_path / "export-b", [raw_message])
 
     messages = parse_exports([first, second])
 
     assert len(messages) == 1
     assert messages[0].category == "견적 요청"
     assert len(messages[0].sources) == 2
-

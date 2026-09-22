@@ -20,10 +20,11 @@ def write_archive_files(
     records_dir = output_dir / "records"
     records_dir.mkdir(parents=True, exist_ok=True)
 
+    known_timestamps = {message.timestamp for message in messages}
     by_date: Dict[str, List[dict]] = defaultdict(list)
     all_records = []
     for message in messages:
-        record = message_record(message, stored.get(message.id, []), messages)
+        record = message_record(message, stored.get(message.id, []), known_timestamps)
         by_date[message.date_key].append(record)
         all_records.append(record)
 
@@ -41,9 +42,8 @@ def write_archive_files(
 def message_record(
     message: Message,
     stored: Sequence[StoredAttachment],
-    all_messages: Sequence[Message],
+    known_timestamps: set,
 ) -> dict:
-    known_timestamps = {item.timestamp for item in all_messages}
     parent_id = (
         f"reagent_apparatus_order:{message.thread_timestamp}"
         if message.is_thread_reply and message.thread_timestamp
@@ -118,4 +118,3 @@ def _write_json(path: Path, payload: object) -> None:
         json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-
