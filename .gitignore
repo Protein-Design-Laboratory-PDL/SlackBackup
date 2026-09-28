@@ -12,3 +12,5 @@ data/
 storage/
 outputs/
 
+# Local planning notes
+IMPLEMENTATION_PLAN.md
