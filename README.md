@@ -59,6 +59,4 @@ Windows PowerShell:
 
 ## 데이터 보호
 
-`data`, `storage`, `outputs`는 Git에서 제외됩니다. Slack 내보내기 JSON에는 메시지, 사용자 정보, 첨부파일 접근 토큰이 포함될 수 있으므로 공개 저장소에 올리지 마세요.
-
-세부 범위와 설계는 [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)를 참고하세요.
+`data`, `storage`, `outputs`는 Git에서 제외됩니다.
